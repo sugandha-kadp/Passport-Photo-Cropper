@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Crop any photo to an Australian 35 x 45 mm passport photo in your browser, from the original pixels.">
+<style>:root{color-scheme:light}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Passport Photo Cropper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: photo-lab bench — live 35×45 frame on the left, controls panel on the right; stacks on phones */
+:root{
+  --bg:#eef1f4; --panel:#ffffff; --fg:#17202a; --muted:#5d6b78; --line:#d5dce3;
+  --accent:#0f5f8c; --accent-fg:#ffffff; --guide:#e8a317; --guide-soft:rgba(232,163,23,.18);
+  --ok:#2f7d4f; --warn:#b5641a; --stage:#dfe4ea;
+  --f-display:"Manrope",system-ui,sans-serif; --f-body:"Manrope",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12171d; --panel:#1a2129; --fg:#e7edf3; --muted:#93a1ae; --line:#2c3640;
+  --accent:#4fa8d8; --accent-fg:#06131c; --guide:#f2b740; --guide-soft:rgba(242,183,64,.2);
+  --ok:#5cc18a; --warn:#e7974f; --stage:#0d1116; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12171d; --panel:#1a2129; --fg:#e7edf3; --muted:#93a1ae; --line:#2c3640;
+  --accent:#4fa8d8; --accent-fg:#06131c; --guide:#f2b740; --guide-soft:rgba(242,183,64,.2);
+  --ok:#5cc18a; --warn:#e7974f; --stage:#0d1116; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.wrap{max-width:1040px;margin:0 auto;padding:28px 16px 48px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 24px;margin-bottom:20px}
+h1{font-family:var(--f-display);font-weight:800;font-size:1.6rem;letter-spacing:-.02em;margin:0;text-wrap:balance}
+.spec{font-family:var(--f-mono);font-size:.8rem;color:var(--muted);letter-spacing:.02em}
+.bench{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start}
+@media (max-width:760px){.bench{grid-template-columns:1fr}}
+.stage{background:var(--stage);border-radius:14px;padding:24px 16px;display:flex;flex-direction:column;align-items:center;gap:12px;min-width:0;position:relative}
+.stage.drag{outline:2px dashed var(--accent);outline-offset:-8px}
+.frame{position:relative;width:min(100%,360px);aspect-ratio:35/45;max-width:100%;box-shadow:0 1px 0 var(--line),0 10px 30px rgba(0,0,0,.18);background:#fff;touch-action:none;cursor:grab}
+.frame:active{cursor:grabbing}
+.frame canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.hint{font-size:.82rem;color:var(--muted);text-align:center;max-width:42ch}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:center;font-size:.78rem;color:var(--muted)}
+.legend i{display:inline-block;width:14px;height:8px;border-radius:2px;background:var(--guide-soft);border:1px solid var(--guide);vertical-align:middle;margin-right:5px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:18px;min-width:0}
+.group{display:flex;flex-direction:column;gap:8px}
+.label{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.row{display:flex;align-items:center;gap:10px}
+.row output{font-family:var(--f-mono);font-size:.8rem;min-width:52px;text-align:right;font-variant-numeric:tabular-nums}
+input[type=range]{flex:1;accent-color:var(--accent);min-width:0}
+select{width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--fg);font:inherit;font-size:.9rem}
+.btn{appearance:none;border:1px solid var(--line);background:var(--bg);color:var(--fg);font:inherit;font-weight:600;font-size:.9rem;padding:9px 14px;border-radius:9px;cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);padding:12px 14px;font-size:1rem}
+.btn:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btns .btn{flex:1}
+.check{display:flex;gap:8px;align-items:center;font-size:.9rem;cursor:pointer}
+.check input{accent-color:var(--accent);width:16px;height:16px}
+.stats{font-family:var(--f-mono);font-size:.78rem;line-height:1.7;border-top:1px solid var(--line);padding-top:12px;font-variant-numeric:tabular-nums}
+.stats div{display:flex;justify-content:space-between;gap:12px}
+.stats span:first-child{color:var(--muted)}
+.pill{display:inline-block;font-family:var(--f-body);font-weight:700;font-size:.72rem;padding:2px 8px;border-radius:99px}
+.pill.ok{color:var(--ok);background:color-mix(in srgb,var(--ok) 14%,transparent)}
+.pill.warn{color:var(--warn);background:color-mix(in srgb,var(--warn) 14%,transparent)}
+.status{font-size:.85rem;color:var(--muted);min-height:1.3em}
+.result{display:flex;flex-direction:column;gap:6px;align-items:center}
+.result img,.result canvas{width:140px;max-width:100%;aspect-ratio:35/45;border:1px solid var(--line);background:#fff;display:block}
+.rules{margin-top:28px;font-size:.88rem;color:var(--muted);max-width:68ch}
+.rules h2{font-size:.95rem;color:var(--fg);margin:0 0 6px}
+.rules ul{margin:0;padding-left:18px}
+.sample-tag{position:absolute;top:10px;left:10px;font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:var(--panel);color:var(--muted);border:1px solid var(--line);padding:3px 8px;border-radius:99px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Passport Photo Cropper</h1>
+    <span class="spec">AUSTRALIA · 35 × 45 mm · HEAD 32–36 mm</span>
+  </header>
+
+  <div class="bench">
+    <section class="stage" id="stage">
+      <span class="sample-tag" id="sampleTag">Sample image</span>
+      <div class="frame" id="frame">
+        <canvas id="view"></canvas>
+        <canvas id="overlay"></canvas>
+      </div>
+      <p class="hint">Drag to move. Scroll, pinch or use the zoom slider to resize. Put the top of the head in the upper band and the chin in the lower band.</p>
+      <div class="legend"><span><i></i>Crown zone (top of head)</span><span><i></i>Chin zone</span></div>
+    </section>
+
+    <aside class="panel">
+      <div class="group">
+        <span class="label">Photo</span>
+        <input type="file" id="file" accept="image/*,.heic,.heif,.HEIC,.HEIF" hidden>
+        <button class="btn primary" id="pick" type="button">Choose a photo</button>
+        <span class="hint" id="current" style="text-align:left" hidden></span>
+        <span class="hint" style="text-align:left">JPG, PNG, HEIC (iPhone), WebP, AVIF, GIF or BMP. TIFF opens in Safari only. You can also drop a photo onto the frame. Your photo stays on this device.</span>
+      </div>
+
+      <div class="group">
+        <span class="label">Adjust</span>
+        <div class="row"><span style="width:58px">Zoom</span><input type="range" id="zoom" min="0" max="1000" value="0"><output id="zoomOut">100%</output></div>
+        <div class="row"><span style="width:58px">Tilt</span><input type="range" id="rot" min="-100" max="100" value="0"><output id="rotOut">0.0°</output></div>
+        <div class="btns"><button class="btn" id="fit" type="button">Fit height</button><button class="btn" id="center" type="button">Center</button></div>
+        <label class="check"><input type="checkbox" id="guides" checked> Show guides</label>
+      </div>
+
+      <div class="group">
+        <span class="label">Export</span>
+        <select id="size">
+          <option value="native" selected>Full quality (original pixels, no resizing)</option>
+          <option value="1063">827 × 1063 px (600 dpi print)</option>
+          <option value="531">413 × 531 px (300 dpi print)</option>
+        </select>
+        <select id="fmt">
+          <option value="jpg" selected>JPEG, maximum quality</option>
+          <option value="png">PNG, lossless</option>
+        </select>
+        <button class="btn primary" id="save" type="button">Download photo</button>
+        <div class="status" id="status" role="status"></div>
+        <div class="result" id="result"><canvas id="previewCanvas" aria-label="Preview of the exported photo"></canvas><span class="hint" id="previewNote">Live preview of the exported photo</span></div>
+        <div class="result" id="fallback" hidden><img id="resultImg" alt="Exported passport photo"><span class="hint">Right-click or long-press this image and choose Save image.</span></div>
+      </div>
+
+      <div class="stats" id="stats"></div>
+    </aside>
+  </div>
+
+  <div class="rules">
+    <h2>Australian passport photo rules to check</h2>
+    <ul>
+      <li>35–40 mm wide by 45–50 mm high. This tool uses 35 × 45 mm.</li>
+      <li>Face from chin to crown 32–36 mm, centred and looking straight at the camera.</li>
+      <li>Plain white or light grey background, even lighting, no shadows.</li>
+      <li>Neutral expression, mouth closed, eyes open. No glasses.</li>
+    </ul>
+    <h2 style="margin-top:18px">Supported image types</h2>
+    <ul>
+      <li>All modern browsers: JPG / JPEG, PNG, WebP, GIF (first frame), BMP, AVIF.</li>
+      <li>HEIC / HEIF (iPhone photos): open directly in Safari. In Chrome, Edge and Firefox the tool converts them first, which needs an internet connection and takes a few seconds.</li>
+      <li>TIFF: Safari only. In other browsers, save it as JPG or PNG first.</li>
+      <li>Exports: JPG at maximum quality, or lossless PNG.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+(() => {
+  const MM_W = 35, MM_H = 45;
+  const CROWN = [3, 5], CHIN = [37, 39]; // mm from top → head 32–36 mm
+  const frame = document.getElementById('frame');
+  const view = document.getElementById('view'), vctx = view.getContext('2d');
+  const overlay = document.getElementById('overlay'), octx = overlay.getContext('2d');
+  const zoom = document.getElementById('zoom'), zoomOut = document.getElementById('zoomOut');
+  const rot = document.getElementById('rot'), rotOut = document.getElementById('rotOut');
+  const statsEl = document.getElementById('stats'), statusEl = document.getElementById('status');
+  const guidesEl = document.getElementById('guides');
+
+  let img = null, isSample = true, fileBase = 'passport-photo';
+  // state: s = frame CSS px per source px; (cx,cy) = source point at frame centre; r = radians
+  const st = { s: 1, cx: 0, cy: 0, r: 0, sMin: 0.01 };
+  let W = 0, H = 0, dpr = 1;
+
+  function sizeCanvases() {
+    const rect = frame.getBoundingClientRect();
+    const oldW = W;
+    W = rect.width; H = rect.height; dpr = window.devicePixelRatio || 1;
+    for (const c of [view, overlay]) { c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); }
+    if (oldW && img) { st.s *= W / oldW; st.sMin *= W / oldW; }
+    if (!oldW && img) { fit(); return; }
+    draw();
+  }
+
+  function paint(ctx, w, h, s) {
+    ctx.save();
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h);
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.translate(w / 2, h / 2); ctx.rotate(st.r); ctx.scale(s, s); ctx.translate(-st.cx, -st.cy);
+    ctx.drawImage(img, 0, 0);
+    ctx.restore();
+  }
+
+  function draw() {
+    if (!img || !W) return;
+    vctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    paint(vctx, W, H, st.s);
+    drawOverlay(); updateUI(); schedulePreview();
+  }
+
+  // live export preview: same paint routine as the download, at thumbnail size
+  const pv = document.getElementById('previewCanvas');
+  let pvQueued = false;
+  function schedulePreview() {
+    if (pvQueued) return; pvQueued = true;
+    requestAnimationFrame(() => {
+      pvQueued = false;
+      if (!img || !H) return;
+      const ph = Math.round(180 * (window.devicePixelRatio || 1)), pw = Math.round(ph * MM_W / MM_H);
+      if (pv.width !== pw) { pv.width = pw; pv.height = ph; }
+      paint(pv.getContext('2d'), pw, ph, st.s * ph / H);
+    });
+  }
+
+  function drawOverlay() {
+    octx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    octx.clearRect(0, 0, W, H);
+    if (!guidesEl.checked) return;
+    const css = getComputedStyle(document.documentElement);
+    const g = css.getPropertyValue('--guide').trim(), gs = css.getPropertyValue('--guide-soft').trim();
+    const k = H / MM_H;
+    octx.fillStyle = gs; octx.strokeStyle = g; octx.lineWidth = 1;
+    for (const [a, b] of [CROWN, CHIN]) {
+      octx.fillRect(0, a * k, W, (b - a) * k);
+      octx.beginPath(); octx.moveTo(0, a * k + .5); octx.lineTo(W, a * k + .5);
+      octx.moveTo(0, b * k - .5); octx.lineTo(W, b * k - .5); octx.stroke();
+    }
+    // centre line + face oval guide
+    octx.setLineDash([4, 5]);
+    octx.beginPath(); octx.moveTo(W / 2, 0); octx.lineTo(W / 2, H); octx.stroke();
+    octx.beginPath();
+    octx.ellipse(W / 2, 21 * k, 11.5 * k, 17 * k, 0, 0, Math.PI * 2);
+    octx.stroke(); octx.setLineDash([]);
+  }
+
+  // zoom slider maps log-scale between sMin (cover) and 8× that
+  const sliderToS = v => st.sMin * Math.pow(8, v / 1000);
+  const sToSlider = s => Math.round(1000 * Math.log(s / st.sMin) / Math.log(8));
+
+  function updateUI() {
+    zoom.value = Math.max(0, Math.min(1000, sToSlider(st.s)));
+    zoomOut.textContent = Math.round(st.s / st.sMin * 100) + '%';
+    rotOut.textContent = (st.r * 180 / Math.PI).toFixed(1) + '°';
+    const srcW = Math.round(W / st.s), srcH = Math.round(H / st.s);
+    const dpi = Math.round(srcW / (MM_W / 25.4));
+    const good = dpi >= 300;
+    statsEl.innerHTML =
+      `<div><span>Source image</span><span>${img.naturalWidth} × ${img.naturalHeight}</span></div>` +
+      `<div><span>Crop (original px)</span><span>${srcW} × ${srcH}</span></div>` +
+      `<div><span>Print density</span><span>${dpi} dpi <span class="pill ${good ? 'ok' : 'warn'}">${good ? 'Sharp' : 'Low'}</span></span></div>`;
+  }
+
+  function fit() {
+    if (!W) return;
+    const iw = img.naturalWidth, ih = img.naturalHeight;
+    st.r = 0; rot.value = 0;
+    st.sMin = Math.max(W / iw, H / ih) * 0.6;
+    st.s = Math.max(W / iw, H / ih);
+    st.cx = iw / 2; st.cy = ih / 2;
+    draw();
+  }
+
+  function setImage(im, sample, name) {
+    if (img && img !== im && img.src.startsWith('blob:')) URL.revokeObjectURL(img.src);
+    img = im; isSample = sample;
+    ptrs.clear(); pinch0 = null;
+    document.getElementById('sampleTag').hidden = !sample;
+    if (name) fileBase = name.replace(/\.[^.]+$/, '') + '-passport';
+    const cur = document.getElementById('current');
+    cur.hidden = sample; if (!sample) cur.textContent = `Editing: ${name}`;
+    document.getElementById('pick').textContent = sample ? 'Choose a photo' : 'Choose a different photo';
+    document.getElementById('fallback').hidden = true; statusEl.textContent = '';
+    fit();
+  }
+
+  const isHeic = f => /\.(heic|heif)$/i.test(f.name) || /image\/hei[cf]/i.test(f.type);
+
+  function openBlob(blob) {
+    return new Promise((res, rej) => {
+      const im = new Image();
+      im.onload = () => res(im);
+      im.onerror = rej;
+      im.src = URL.createObjectURL(blob);
+    });
+  }
+
+  let heicLib = null;
+  function loadHeicLib() {
+    if (window.heic2any) return Promise.resolve(window.heic2any);
+    if (!heicLib) heicLib = new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
+      s.onload = () => window.heic2any ? res(window.heic2any) : rej();
+      s.onerror = () => { heicLib = null; rej(); };
+      document.head.appendChild(s);
+    });
+    return heicLib;
+  }
+
+  async function loadFile(f) {
+    if (!f) return;
+    const looksImage = f.type.startsWith('image/') || isHeic(f) || /\.(jpe?g|png|webp|avif|gif|bmp|tiff?)$/i.test(f.name);
+    if (!looksImage) { statusEl.textContent = 'That file is not an image. Choose a JPG, PNG, HEIC, WebP or AVIF photo.'; return; }
+    statusEl.textContent = 'Opening photo…';
+    try {
+      // Try the browser first (Safari opens HEIC natively)
+      const im = await openBlob(f);
+      setImage(im, false, f.name);
+      return;
+    } catch (_) { /* fall through */ }
+    if (isHeic(f)) {
+      try {
+        statusEl.textContent = 'Converting HEIC photo… this can take a few seconds.';
+        const conv = await loadHeicLib();
+        let out = await conv({ blob: f, toType: 'image/png' }); // PNG keeps it lossless
+        if (Array.isArray(out)) out = out[0];
+        const im = await openBlob(out);
+        setImage(im, false, f.name);
+        return;
+      } catch (_) {
+        statusEl.textContent = 'Could not convert this HEIC photo. Check your internet connection, or export it as JPG from the Photos app.';
+        return;
+      }
+    }
+    statusEl.textContent = 'This browser cannot open that image type. Save it as JPG or PNG first.';
+  }
+
+  // sample silhouette so the tool shows its working state before a photo is chosen
+  function makeSample() {
+    const c = document.createElement('canvas'); c.width = 1200; c.height = 1600;
+    const x = c.getContext('2d');
+    x.fillStyle = '#ecebe4'; x.fillRect(0, 0, 1200, 1600);
+    x.fillStyle = '#4a4e57';
+    x.beginPath(); x.moveTo(80, 1600); x.bezierCurveTo(120, 1180, 380, 1120, 600, 1110); x.bezierCurveTo(820, 1120, 1080, 1180, 1120, 1600); x.fill();
+    x.fillStyle = '#c69c7c'; x.fillRect(520, 900, 160, 240);
+    x.beginPath(); x.ellipse(600, 720, 210, 280, 0, 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#2a2420'; x.beginPath(); x.ellipse(600, 540, 220, 140, 0, Math.PI, Math.PI * 2); x.fill();
+    const im = new Image(); im.onload = () => setImage(im, true); im.src = c.toDataURL('image/png');
+  }
+
+  // pointer interaction: drag to pan, two fingers to pinch
+  const ptrs = new Map(); let pinch0 = null;
+  frame.addEventListener('pointerdown', e => { frame.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (ptrs.size === 2) pinch0 = { d: dist(), s: st.s }; });
+  frame.addEventListener('pointermove', e => {
+    if (!ptrs.has(e.pointerId) || !img) return;
+    const p = ptrs.get(e.pointerId);
+    if (ptrs.size === 1) pan(e.clientX - p.x, e.clientY - p.y);
+    p.x = e.clientX; p.y = e.clientY;
+    if (ptrs.size === 2 && pinch0) { st.s = Math.max(st.sMin, pinch0.s * dist() / pinch0.d); draw(); }
+  });
+  const up = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch0 = null; };
+  frame.addEventListener('pointerup', up); frame.addEventListener('pointercancel', up);
+  function dist() { const [a, b] = [...ptrs.values()]; return Math.hypot(a.x - b.x, a.y - b.y) || 1; }
+  function pan(dx, dy) {
+    const c = Math.cos(-st.r), s = Math.sin(-st.r);
+    st.cx -= (dx * c - dy * s) / st.s; st.cy -= (dx * s + dy * c) / st.s; draw();
+  }
+  frame.addEventListener('wheel', e => { if (!img) return; e.preventDefault(); st.s = Math.max(st.sMin, st.s * Math.exp(-e.deltaY * 0.0015)); draw(); }, { passive: false });
+  frame.tabIndex = 0;
+  frame.addEventListener('keydown', e => {
+    const step = e.shiftKey ? 10 : 2, m = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
+    if (m) { e.preventDefault(); pan(m[0], m[1]); }
+  });
+
+  zoom.addEventListener('input', () => { st.s = sliderToS(+zoom.value); draw(); });
+  rot.addEventListener('input', () => { st.r = (+rot.value / 10) * Math.PI / 180; draw(); });
+  guidesEl.addEventListener('change', drawOverlay);
+  document.getElementById('fit').addEventListener('click', () => img && fit());
+  document.getElementById('center').addEventListener('click', () => { if (img) { st.cx = img.naturalWidth / 2; draw(); } });
+  const fileIn = document.getElementById('file');
+  document.getElementById('pick').addEventListener('click', () => fileIn.click());
+  fileIn.addEventListener('change', () => {
+    const f = fileIn.files && fileIn.files[0];
+    fileIn.value = ''; // reset so choosing any file again (even the same one) fires change
+    loadFile(f);
+  });
+  const stage = document.getElementById('stage');
+  stage.addEventListener('dragover', e => { e.preventDefault(); stage.classList.add('drag'); });
+  stage.addEventListener('dragleave', () => stage.classList.remove('drag'));
+  stage.addEventListener('drop', e => { e.preventDefault(); stage.classList.remove('drag'); loadFile(e.dataTransfer.files[0]); });
+
+  // export straight from the original pixels
+  function exportBlob() {
+    const sizeV = document.getElementById('size').value, fmt = document.getElementById('fmt').value;
+    const outH = sizeV === 'native' ? Math.round(H / st.s) : +sizeV;
+    const outW = Math.round(outH * MM_W / MM_H);
+    const c = document.createElement('canvas'); c.width = outW; c.height = outH;
+    const ctx = c.getContext('2d');
+    paint(ctx, outW, outH, st.s * outH / H);
+    const type = fmt === 'png' ? 'image/png' : 'image/jpeg';
+    return new Promise(res => c.toBlob(b => res({ blob: b, outW, outH, fmt, canvas: c, type }), type, 1.0));
+  }
+
+  function showFallback(c, type) {
+    const ri = document.getElementById('resultImg');
+    try { ri.src = c.toDataURL(type, 1.0); } catch (_) {}
+    document.getElementById('fallback').hidden = false;
+  }
+
+  let downloads; const dlReady = (window.claude && window.claude.use) ? window.claude.use('downloads').then(d => (downloads = d)).catch(() => null) : Promise.resolve(null);
+
+  document.getElementById('save').addEventListener('click', async () => {
+    if (!img) return;
+    document.getElementById('fallback').hidden = true;
+    statusEl.textContent = 'Preparing photo…';
+    const { blob, outW, outH, fmt, canvas, type } = await exportBlob();
+    if (!blob) { statusEl.textContent = 'The browser could not create the image. Try the 827 × 1063 px size.'; return; }
+    const name = `${isSample ? 'sample' : fileBase}-35x45mm.${fmt}`;
+    const kb = Math.round(blob.size / 1024);
+    await dlReady;
+    if (downloads) {
+      try { await downloads.save({ filename: name, data: blob }); statusEl.textContent = `Saved ${name} (${outW} × ${outH} px, ${kb} KB).`; }
+      catch (err) {
+        if (err && err.code === 'declined') { statusEl.textContent = 'Download cancelled.'; }
+        else { statusEl.textContent = 'Direct download is not available here.'; showFallback(canvas, type); }
+      }
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+      statusEl.textContent = `Downloaded ${name} (${outW} × ${outH} px, ${kb} KB).`;
+    }
+  });
+
+  new ResizeObserver(sizeCanvases).observe(frame);
+  makeSample();
+})();
+</script>
+
+</body>
+</html>
