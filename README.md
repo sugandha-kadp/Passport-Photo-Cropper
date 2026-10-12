@@ -2,7 +2,7 @@
 
 Crop any photo to an **Australian passport photo (35 × 45 mm)** in your browser, without losing quality.
 
-**Live site:** https://sugandha-kadp.github.io/passport-photo-cropper/
+**Live site:** https://sugandha-kadp.github.io/Passport-Photo-Cropper/
 
 ---
 
@@ -25,7 +25,7 @@ Most free passport photo apps shrink your picture to around 413 × 531 px before
 
 ## How to use it
 
-1. Open the [live site](https://sugandha-kadp.github.io/passport-photo-cropper/).
+1. Open the [live site](https://sugandha-kadp.github.io/Passport-Photo-Cropper/).
 2. Click **Choose a photo**, or drag an image onto the frame.
 3. Move and zoom until the top of your head sits in the upper band and your chin sits in the lower band.
 4. Use **Tilt** if your head is slightly angled.
